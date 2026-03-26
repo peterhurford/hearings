@@ -544,7 +544,7 @@ def split_audio_at_silence(audio_path, chunk_dir):
                 else:
                     # Find a good split point
                     split_point = find_best_split_point(pos, seg_end, preferred_splits)
-                    if split_point and split_point - pos >= 300:  # At least 5 min chunk
+                    if split_point and 300 <= (split_point - pos) <= CHUNK_DURATION_SECS * 2:  # At least 5 min, at most 2x target
                         chunk_end = split_point
                     else:
                         # Fall back to fixed duration
