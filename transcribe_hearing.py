@@ -313,6 +313,9 @@ def download_audio(youtube_id, output_dir):
         "-x",                      # Extract audio
         "--audio-format", "mp3",   # Convert to mp3
         "--audio-quality", "2",    # Good quality
+        # Allow download of recently-ended livestreams still in
+        # "Post-Live Manifestless" mode (VOD not yet finalized).
+        "--extractor-args", "youtube:formats=missing_pot",
         "-o", output_path,
         youtube_url,
     ]
