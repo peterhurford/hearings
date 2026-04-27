@@ -4,9 +4,11 @@ Transcribe a congressional hearing and generate a full analysis report.
 
 Usage:
     python transcribe_hearing.py <hearing_url>
+    python transcribe_hearing.py --video <local_file> [hearing_url]
 
 Example:
     python transcribe_hearing.py https://foreignaffairs.house.gov/committee-activity/hearings/strengthening-export-control-enforcement
+    python transcribe_hearing.py --video judiciary042226.mp4 --title "Judiciary Hearing"
 """
 
 import argparse
@@ -1118,10 +1120,33 @@ def assemble_report(hearing_title, executive_summary, detailed_notes, transcript
     print(f"\nReport saved to: {output_path}")
 
 
+def extract_audio_from_video(video_path, output_path):
+    """Extract audio from a local video file using ffmpeg."""
+    print(f"Extracting audio from: {video_path}")
+    cmd = [
+        "ffmpeg", "-y", "-i", video_path,
+        "-vn", "-acodec", "libmp3lame", "-q:a", "2",
+        output_path,
+    ]
+    subprocess.run(cmd, capture_output=True, check=True)
+    print(f"Audio saved to: {output_path}")
+    size_mb = os.path.getsize(output_path) / (1024 * 1024)
+    print(f"Audio file size: {size_mb:.1f} MB")
+    return output_path
+
+
+def slug_from_filename(filename):
+    """Extract a slug from a local filename."""
+    base = os.path.splitext(os.path.basename(filename))[0]
+    slug = re.sub(r'[^a-zA-Z0-9-]', '-', base)
+    return slug
+
+
 def main():
     parser = argparse.ArgumentParser(description="Transcribe and analyze a congressional hearing.")
-    parser.add_argument("url", help="URL of the hearing page")
+    parser.add_argument("url", nargs="?", default=None, help="URL of the hearing page")
     parser.add_argument("-o", "--output", help="Output markdown file path")
+    parser.add_argument("--video", help="Local video or audio file to transcribe (skips YouTube download)")
     parser.add_argument("--youtube-id", help="Skip scraping and use this YouTube video ID directly")
     parser.add_argument("--title", help="Override hearing title")
     parser.add_argument("--keep-audio", action="store_true", help="Copy the audio file to the current directory")
@@ -1132,7 +1157,10 @@ def main():
                         help="Clear cached results for this hearing and exit")
     args = parser.parse_args()
 
-    slug = slug_from_url(args.url)
+    if not args.video and not args.url:
+        parser.error("Either a hearing URL or --video <file> is required")
+
+    slug = slug_from_url(args.url) if args.url else slug_from_filename(args.video)
 
     if args.clear_cache:
         clear_cache(slug)
@@ -1147,13 +1175,24 @@ def main():
 
     print(f"Cache directory: {cache_dir}")
 
-    # Step 1: Get YouTube video ID, title, and hearing context
+    # Step 1: Get hearing context
     hearing_context = {}
-    if args.youtube_id:
-        video_id = args.youtube_id
+    if args.video:
+        # Local file mode
+        if not os.path.exists(args.video):
+            print(f"File not found: {args.video}", file=sys.stderr)
+            sys.exit(1)
         hearing_title = args.title or slug.replace("-", " ").title()
-        print(f"Using provided YouTube ID: {video_id}")
-        # Still try to scrape context even with manual youtube-id
+        # If a URL was also provided, try to scrape context from it
+        if args.url:
+            try:
+                _, _, hearing_context = fetch_hearing_info(args.url)
+                hearing_title = args.title or hearing_context.get("title") or hearing_title
+            except Exception as e:
+                print(f"Warning: Could not fetch hearing context from URL: {e}")
+    elif args.youtube_id:
+        hearing_title = args.title or slug.replace("-", " ").title()
+        print(f"Using provided YouTube ID: {args.youtube_id}")
         try:
             _, _, hearing_context = fetch_hearing_info(args.url)
         except Exception:
@@ -1171,12 +1210,23 @@ def main():
 
     output_path = args.output or f"{slug}.md"
 
-    # Step 2: Download audio
+    # Step 2: Get audio
     cached_audio = os.path.join(cache_dir, "audio.mp3")
     if os.path.exists(cached_audio):
         print(f"Using cached audio ({os.path.getsize(cached_audio) / (1024*1024):.1f} MB)")
         audio_path = cached_audio
+    elif args.video:
+        # Check if the local file is already audio
+        ext = os.path.splitext(args.video)[1].lower()
+        if ext in (".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac"):
+            # Copy audio file to cache
+            shutil.copy2(args.video, cached_audio)
+            audio_path = cached_audio
+        else:
+            # Extract audio from video
+            audio_path = extract_audio_from_video(args.video, cached_audio)
     else:
+        video_id = args.youtube_id if args.youtube_id else video_id
         audio_path = download_audio(video_id, cache_dir)
 
     # Step 3: Transcribe
