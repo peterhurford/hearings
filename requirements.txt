@@ -1,0 +1,5 @@
+requests
+llm
+llm-gemini
+llm-anthropic
+yt-dlp
