@@ -304,7 +304,7 @@ def fetch_hearing_info(hearing_url):
     return video_id, title, hearing_context
 
 
-def download_audio(youtube_id, output_dir):
+def download_audio(youtube_id, output_dir, cookies_from_browser=None, cookies_file=None):
     """Download audio from YouTube video using yt-dlp."""
     youtube_url = f"https://www.youtube.com/watch?v={youtube_id}"
     output_path = os.path.join(output_dir, "audio.mp3")
@@ -319,8 +319,12 @@ def download_audio(youtube_id, output_dir):
         # "Post-Live Manifestless" mode (VOD not yet finalized).
         "--extractor-args", "youtube:formats=missing_pot",
         "-o", output_path,
-        youtube_url,
     ]
+    if cookies_from_browser:
+        cmd += ["--cookies-from-browser", cookies_from_browser]
+    if cookies_file:
+        cmd += ["--cookies", cookies_file]
+    cmd.append(youtube_url)
     subprocess.run(cmd, check=True)
 
     if not os.path.exists(output_path):
@@ -1155,6 +1159,11 @@ def main():
                         help="Clear cache and start fresh (results are still cached for future runs)")
     parser.add_argument("--clear-cache", action="store_true",
                         help="Clear cached results for this hearing and exit")
+    parser.add_argument("--cookies-from-browser",
+                        help="Browser to load YouTube cookies from (e.g. chrome, firefox, safari, brave, edge). "
+                             "Use this if yt-dlp hits 'Sign in to confirm you're not a bot'.")
+    parser.add_argument("--cookies",
+                        help="Path to a Netscape-format cookies.txt file for yt-dlp (alternative to --cookies-from-browser)")
     args = parser.parse_args()
 
     if not args.video and not args.url:
@@ -1227,7 +1236,11 @@ def main():
             audio_path = extract_audio_from_video(args.video, cached_audio)
     else:
         video_id = args.youtube_id if args.youtube_id else video_id
-        audio_path = download_audio(video_id, cache_dir)
+        audio_path = download_audio(
+            video_id, cache_dir,
+            cookies_from_browser=args.cookies_from_browser,
+            cookies_file=args.cookies,
+        )
 
     # Step 3: Transcribe
     cached_transcript = os.path.join(cache_dir, "transcript.txt")

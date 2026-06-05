@@ -16,7 +16,7 @@ python3 transcribe_hearing.py --video file.mp4 [url]      # local video/audio; U
 python3 transcribe_hearing.py --youtube-id <id> <url>     # bypass embed scraping
 ```
 
-Useful flags: `-o file.md`, `--title "..."`, `--keep-audio`, `--transcript-only`, `--no-cache`, `--clear-cache`.
+Useful flags: `-o file.md`, `--title "..."`, `--keep-audio`, `--transcript-only`, `--no-cache`, `--clear-cache`, `--cookies-from-browser <browser>` / `--cookies <path>` (pass through to yt-dlp when YouTube blocks anonymous downloads with "Sign in to confirm you're not a bot").
 
 There is no test suite, linter, or build step — this is a single Python file.
 
@@ -38,3 +38,4 @@ The pipeline is six sequential steps in `main()` (transcribe_hearing.py:1145), e
 - **Caching granularity matters.** Each pipeline step writes to its own file in `.hearings_cache/<slug>/`. Adding a step should follow the same pattern (check for cached file → reuse, else compute → write). Deleting a single cache file should cleanly re-trigger just that step.
 - **Silence handling is load-bearing.** The chunker splits *at* silences to avoid cutting speakers mid-sentence, and the silence-marker injection produces the `[RECESS]` annotations in the output. If you touch chunking, preserve both behaviors.
 - **The hearing-page scraper is committee-site-specific** and brittle by nature — committee sites change their embed format. Failures here should fall back to `--youtube-id` or `--video`, not crash the run.
+- **YouTube bot-check fallback.** `download_audio` accepts `cookies_from_browser` and `cookies_file` kwargs that map to yt-dlp's `--cookies-from-browser` / `--cookies`. The CLI exposes them as `--cookies-from-browser` and `--cookies`. When YouTube returns "Sign in to confirm you're not a bot," the fix is cookies, not retrying — point users at this flag rather than adding retry logic.

@@ -69,6 +69,8 @@ python3 transcribe_hearing.py --youtube-id dQw4w9WgXcQ https://...committee-url.
 | `--transcript-only` | Skip the executive summary and detailed notes — just produce the timestamped transcript. |
 | `--no-cache` | Throw away any cached work for this hearing and start fresh. |
 | `--clear-cache` | Delete the cache for this hearing and exit (no transcription run). |
+| `--cookies-from-browser <browser>` | Load YouTube cookies from a local browser (`chrome`, `firefox`, `safari`, `brave`, `edge`). Use this if `yt-dlp` hits "Sign in to confirm you're not a bot." |
+| `--cookies <path>` | Path to a Netscape-format `cookies.txt` for `yt-dlp` (alternative to `--cookies-from-browser`). |
 
 ### What you get out
 
@@ -115,6 +117,15 @@ The committee site changed its embed format, or the video isn't on YouTube. Pass
 
 **`yt-dlp` errors about a "Post-Live Manifestless" video.**
 The hearing just ended and YouTube hasn't finished processing the VOD. Wait 15-30 minutes and try again.
+
+**`yt-dlp` errors with "Sign in to confirm you're not a bot."**
+YouTube is rate-limiting anonymous downloads from your IP. Pass cookies from a browser you're already signed into YouTube on:
+
+```bash
+python3 transcribe_hearing.py --cookies-from-browser chrome <url>
+```
+
+Close the browser first if it complains about the cookies DB being locked. Other supported values: `firefox`, `safari`, `brave`, `edge`. If browser extraction won't work, export a `cookies.txt` (Netscape format) for `youtube.com` with a browser extension and pass `--cookies path/to/cookies.txt` instead.
 
 **`llm` errors about an unknown model.**
 You haven't installed the Gemini plugin or set your API key — re-run the [Setup](#setup) steps.
