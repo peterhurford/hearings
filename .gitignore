@@ -1,0 +1,20 @@
+# Cache (per-hearing intermediate artifacts: audio.mp3, chunk_*.mp3, chunk_*.txt,
+# transcript.txt, executive_summary.txt, detailed_notes.txt, hearing_info.json, etc.)
+.hearings_cache/
+
+# Final report output (default: <slug>.md in repo root)
+*.md
+!README.md
+!CLAUDE.md
+
+# Kept audio (--keep-audio writes <slug>.mp3 to repo root)
+*.mp3
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editor / OS
+.DS_Store
