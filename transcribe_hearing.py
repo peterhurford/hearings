@@ -24,7 +24,7 @@ import requests
 
 
 TRANSCRIBE_MODEL = "gemini/gemini-3.1-pro-preview"  # Must support audio input
-SUMMARY_MODEL = "claude-opus-4-7"
+SUMMARY_MODEL = "anthropic/claude-opus-4-7"
 
 
 EXECUTIVE_SUMMARY_PROMPT = """\
