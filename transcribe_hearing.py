@@ -318,6 +318,10 @@ def download_audio(youtube_id, output_dir, cookies_from_browser=None, cookies_fi
         # Allow download of recently-ended livestreams still in
         # "Post-Live Manifestless" mode (VOD not yet finalized).
         "--extractor-args", "youtube:formats=missing_pot",
+        # Fetch YouTube's EJS challenge-solver script so yt-dlp can solve the
+        # "n challenge". Without it every format is silently dropped and yt-dlp
+        # bails with a misleading "This live event has ended." error.
+        "--remote-components", "ejs:github",
         "-o", output_path,
     ]
     if cookies_from_browser:
