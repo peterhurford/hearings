@@ -13,8 +13,11 @@ External dependencies: `ffmpeg` (silence detection + audio extraction), `yt-dlp`
 ```bash
 python3 transcribe_hearing.py <hearing-page-url>          # most common: scrape page + embedded YouTube
 python3 transcribe_hearing.py --video file.mp4 [url]      # local video/audio; URL still useful for metadata
-python3 transcribe_hearing.py --youtube-id <id> <url>     # bypass embed scraping
+python3 transcribe_hearing.py --youtube-id <id> [url]     # bypass embed scraping; URL optional
+python3 transcribe_hearing.py <youtube-url>               # bare YouTube link (watch/live/youtu.be/shorts)
 ```
+
+A bare YouTube URL is detected by `youtube_id_from_url` and short-circuits the committee-page scraper — there's no hearing metadata to scrape, so the title comes from `fetch_youtube_title` (yt-dlp `--skip-download --print`). Both this and `--youtube-id <id>` slug to the video ID, so they share one cache dir.
 
 Useful flags: `-o file.md`, `--title "..."`, `--keep-audio`, `--transcript-only`, `--no-cache`, `--clear-cache`, `--cookies-from-browser <browser>` / `--cookies <path>` (pass through to yt-dlp when YouTube blocks anonymous downloads with "Sign in to confirm you're not a bot").
 

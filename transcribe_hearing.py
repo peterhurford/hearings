@@ -101,6 +101,43 @@ def clear_cache(slug):
         print(f"No cache found for: {slug}")
 
 
+def youtube_id_from_url(url):
+    """Return the video ID if the URL is itself a YouTube link, else None.
+
+    Handles watch?v=, /live/, /embed/, /shorts/, and youtu.be forms so a bare
+    YouTube URL doesn't get run through the committee-page scraper.
+    """
+    if not url:
+        return None
+    for pattern in [
+        r'youtube\.com/watch\?(?:[^#]*&)?v=([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/(?:live|embed|shorts|v)/([a-zA-Z0-9_-]{11})',
+        r'youtu\.be/([a-zA-Z0-9_-]{11})',
+    ]:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+
+
+def fetch_youtube_title(youtube_id, cookies_from_browser=None, cookies_file=None):
+    """Get a video's title from yt-dlp without downloading it. None on failure."""
+    cmd = ["yt-dlp", "--skip-download", "--print", "%(title)s"]
+    if cookies_from_browser:
+        cmd += ["--cookies-from-browser", cookies_from_browser]
+    if cookies_file:
+        cmd += ["--cookies", cookies_file]
+    cmd.append(f"https://www.youtube.com/watch?v={youtube_id}")
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except (subprocess.SubprocessError, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    title = result.stdout.strip().splitlines()
+    return title[0].strip() if title and title[0].strip() else None
+
+
 def fetch_hearing_info(hearing_url):
     """Fetch the hearing page and extract video ID, title, witnesses, and subcommittee info."""
     print(f"Fetching hearing page: {hearing_url}")
@@ -1152,7 +1189,8 @@ def slug_from_filename(filename):
 
 def main():
     parser = argparse.ArgumentParser(description="Transcribe and analyze a congressional hearing.")
-    parser.add_argument("url", nargs="?", default=None, help="URL of the hearing page")
+    parser.add_argument("url", nargs="?", default=None,
+                        help="URL of the hearing page, or a YouTube URL (watch/live/youtu.be)")
     parser.add_argument("-o", "--output", help="Output markdown file path")
     parser.add_argument("--video", help="Local video or audio file to transcribe (skips YouTube download)")
     parser.add_argument("--youtube-id", help="Skip scraping and use this YouTube video ID directly")
@@ -1170,10 +1208,20 @@ def main():
                         help="Path to a Netscape-format cookies.txt file for yt-dlp (alternative to --cookies-from-browser)")
     args = parser.parse_args()
 
-    if not args.video and not args.url:
-        parser.error("Either a hearing URL or --video <file> is required")
+    if not args.video and not args.url and not args.youtube_id:
+        parser.error("Either a hearing URL, --youtube-id <id>, or --video <file> is required")
 
-    slug = slug_from_url(args.url) if args.url else slug_from_filename(args.video)
+    # A bare YouTube URL is not a hearing page — pull the ID straight out of it.
+    direct_youtube_id = youtube_id_from_url(args.url)
+    if direct_youtube_id and not args.youtube_id:
+        args.youtube_id = direct_youtube_id
+
+    if args.url:
+        slug = direct_youtube_id or slug_from_url(args.url)
+    elif args.video:
+        slug = slug_from_filename(args.video)
+    else:
+        slug = args.youtube_id
 
     if args.clear_cache:
         clear_cache(slug)
@@ -1204,12 +1252,24 @@ def main():
             except Exception as e:
                 print(f"Warning: Could not fetch hearing context from URL: {e}")
     elif args.youtube_id:
-        hearing_title = args.title or slug.replace("-", " ").title()
-        print(f"Using provided YouTube ID: {args.youtube_id}")
-        try:
-            _, _, hearing_context = fetch_hearing_info(args.url)
-        except Exception:
-            pass
+        print(f"Using YouTube video ID: {args.youtube_id}")
+        # Only scrape if a separate hearing page was given — a bare YouTube URL
+        # has no committee metadata to scrape.
+        if args.url and not direct_youtube_id:
+            try:
+                _, scraped_title, hearing_context = fetch_hearing_info(args.url)
+            except Exception as e:
+                print(f"Warning: Could not fetch hearing context from URL: {e}")
+                scraped_title = None
+        else:
+            scraped_title = None
+        hearing_title = (
+            args.title
+            or scraped_title
+            or hearing_context.get("title")
+            or fetch_youtube_title(args.youtube_id, args.cookies_from_browser, args.cookies)
+            or slug.replace("-", " ").title()
+        )
     else:
         video_id, scraped_title, hearing_context = fetch_hearing_info(args.url)
         hearing_title = args.title or scraped_title or slug.replace("-", " ").title()
@@ -1218,6 +1278,9 @@ def main():
             print("Try providing the YouTube video ID directly with --youtube-id", file=sys.stderr)
             sys.exit(1)
         print(f"Found YouTube video ID: {video_id}")
+
+    if not hearing_context.get("title"):
+        hearing_context["title"] = hearing_title
 
     print(f"Hearing title: {hearing_title}")
 
