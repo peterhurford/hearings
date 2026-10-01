@@ -172,5 +172,5 @@ Confirm everything works:
 
 ```bash
 llm -m gemini/gemini-3.1-pro-preview "say hello"
-llm -m claude-opus-4-7 "say hello"
+llm -m claude-opus-5-5 "say hello"
 ```
