@@ -366,7 +366,13 @@ def download_audio(youtube_id, output_dir, cookies_from_browser=None, cookies_fi
     if cookies_file:
         cmd += ["--cookies", cookies_file]
     cmd.append(youtube_url)
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError:
+        if not (cookies_from_browser or cookies_file):
+            sys.exit("yt-dlp failed. If it said 'Sign in to confirm you're not a bot', rerun with "
+                     "--cookies-from-browser (defaults to chrome) or --cookies <cookies.txt>.")
+        raise
 
     if not os.path.exists(output_path):
         # yt-dlp sometimes adds extension
@@ -1201,12 +1207,16 @@ def main():
                         help="Clear cache and start fresh (results are still cached for future runs)")
     parser.add_argument("--clear-cache", action="store_true",
                         help="Clear cached results for this hearing and exit")
-    parser.add_argument("--cookies-from-browser",
-                        help="Browser to load YouTube cookies from (e.g. chrome, firefox, safari, brave, edge). "
-                             "Use this if yt-dlp hits 'Sign in to confirm you're not a bot'.")
+    parser.add_argument("--cookies-from-browser", nargs="?", const="chrome",
+                        help="Browser to load YouTube cookies from (e.g. chrome, firefox, safari, brave, edge; "
+                             "bare flag means chrome). Use this if yt-dlp hits 'Sign in to confirm you're not a bot'.")
     parser.add_argument("--cookies",
                         help="Path to a Netscape-format cookies.txt file for yt-dlp (alternative to --cookies-from-browser)")
     args = parser.parse_args()
+
+    # A bare --cookies-from-browser placed before the URL swallows the URL as its value.
+    if args.cookies_from_browser and "://" in args.cookies_from_browser and not args.url:
+        args.url, args.cookies_from_browser = args.cookies_from_browser, "chrome"
 
     if not args.video and not args.url and not args.youtube_id:
         parser.error("Either a hearing URL, --youtube-id <id>, or --video <file> is required")
